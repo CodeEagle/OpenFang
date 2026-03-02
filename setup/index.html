@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenFang 配置引导</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 600px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert {
+            background: #fef3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .alert-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .alert-content {
+            flex: 1;
+        }
+        .alert-title {
+            font-weight: 600;
+            color: #856404;
+            margin-bottom: 4px;
+        }
+        .alert-text {
+            color: #856404;
+            font-size: 14px;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            font-weight: 600;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .step-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .step-content {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-left: 38px;
+        }
+        .step-content code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #d63384;
+        }
+        .providers {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .provider {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .provider-name {
+            font-weight: 500;
+            color: #333;
+        }
+        .provider-key {
+            color: #888;
+            font-size: 11px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+        }
+        .footer-text {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(102, 126, 234, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 OpenFang</h1>
+            <p>Agent Operating System</p>
+        </div>
+        <div class="content">
+            <div class="alert">
+                <span class="alert-icon">⚠️</span>
+                <div class="alert-content">
+                    <div class="alert-title">需要配置 LLM API Key</div>
+                    <div class="alert-text">OpenFang 需要至少配置一个 LLM Provider 的 API Key 才能正常运行。</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-title">
+                    <span class="step-number">1</span>
+                    进入应用设置
+                </div>
+                <div class="step-content">
+                    在懒猫微服中，打开 <strong>应用中心</strong> → 找到 <strong>OpenFang</strong> → 点击 <strong>设置</strong>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-title">
+                    <span class="step-number">2</span>
+                    添加环境变量
+                </div>
+                <div class="step-content">
+                    在环境变量配置中，添加你的 API Key，例如：
+                    <br><br>
+                    <code>ANTHROPIC_API_KEY=sk-ant-xxxxx</code>
+                    <br><br>
+                    支持的 LLM Provider：
+                    <div class="providers">
+                        <div class="provider">
+                            <span class="provider-name">Anthropic</span>
+                            <span class="provider-key">ANTHROPIC_API_KEY</span>
+                        </div>
+                        <div class="provider">
+                            <span class="provider-name">OpenAI</span>
+                            <span class="provider-key">OPENAI_API_KEY</span>
+                        </div>
+                        <div class="provider">
+                            <span class="provider-name">Google Gemini</span>
+                            <span class="provider-key">GEMINI_API_KEY</span>
+                        </div>
+                        <div class="provider">
+                            <span class="provider-name">DeepSeek</span>
+                            <span class="provider-key">DEEPSEEK_API_KEY</span>
+                        </div>
+                        <div class="provider">
+                            <span class="provider-name">Groq</span>
+                            <span class="provider-key">GROQ_API_KEY</span>
+                        </div>
+                        <div class="provider">
+                            <span class="provider-name">OpenRouter</span>
+                            <span class="provider-key">OPENROUTER_API_KEY</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-title">
+                    <span class="step-number">3</span>
+                    重启应用
+                </div>
+                <div class="step-content">
+                    保存设置后，点击 <strong>重启</strong> 应用即可开始使用 OpenFang。
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            <p class="footer-text">
+                获取 API Key: <a href="https://console.anthropic.com" target="_blank">Anthropic</a> · 
+                <a href="https://platform.openai.com" target="_blank">OpenAI</a> · 
+                <a href="https://aistudio.google.com" target="_blank">Google</a>
+            </p>
+            <a href="https://openfang.sh/docs/getting-started" target="_blank" class="btn">
+                📖 查看文档
+            </a>
+        </div>
+    </div>
+</body>
+</html>

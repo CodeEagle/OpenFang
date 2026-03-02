@@ -1,0 +1,171 @@
+name: Update OpenFang Image
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if no new version'
+        required: false
+        default: 'false'
+        type: boolean
+  # 定时检查，每6小时一次
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest package version
+        id: get-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 从 GitHub releases 获取最新版本号
+          LATEST_VERSION=$(gh api repos/RightNow-AI/openfang/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "No release found"
+            exit 1
+          fi
+          
+          # 去掉 v 前缀
+          LATEST_VERSION=${LATEST_VERSION#v}
+          
+          echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest version found: $LATEST_VERSION"
+
+      - name: Check if update needed
+        id: check-update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_IMAGE=$(grep 'image:' lzc-manifest.yml | head -1 | awk '{print $2}')
+          echo "Current image: $CURRENT_IMAGE"
+          
+          LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          FORCE_BUILD="${{ inputs.force_build }}"
+          
+          echo "Force build: $FORCE_BUILD"
+          
+          if [ "$FORCE_BUILD" = "true" ]; then
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            echo "Force build requested"
+          elif [ -n "$LATEST_VERSION" ]; then
+            if [[ "$CURRENT_IMAGE" != *"$LATEST_VERSION"* ]]; then
+              echo "update_needed=true" >> $GITHUB_OUTPUT
+              echo "New version available: $LATEST_VERSION"
+            else
+              echo "update_needed=false" >> $GITHUB_OUTPUT
+              echo "Already on latest version"
+            fi
+          else
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+            echo "Could not determine latest version"
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-update.outputs.update_needed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install lzc-cli
+        if: steps.check-update.outputs.update_needed == 'true'
+        run: npm install -g @lazycatcloud/lzc-cli
+
+      - name: Get or copy image
+        if: steps.check-update.outputs.update_needed == 'true'
+        id: copy-image
+        env:
+          LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
+        run: |
+          LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          SOURCE_IMAGE="ghcr.io/rightnow-ai/openfang:$LATEST_VERSION"
+          
+          echo "Looking for existing image: $SOURCE_IMAGE"
+          
+          # 检查 my-images 中是否已存在该镜像
+          EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$SOURCE_IMAGE" | grep -oP 'registry\.lazycat\.cloud/[^\s'\'"]+' | head -1 || echo "")
+          
+          if [ -n "$EXISTING_IMAGE" ]; then
+            echo "Found existing accelerated image: $EXISTING_IMAGE"
+            echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
+          else
+            echo "No existing image found, copying: $SOURCE_IMAGE"
+            
+            COPY_OUTPUT=$(lzc-cli appstore copy-image "$SOURCE_IMAGE" 2>&1)
+            echo "$COPY_OUTPUT"
+            
+            ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oP 'registry\.lazycat\.cloud/[^\s]+' || echo "")
+            
+            if [ -z "$ACCELERATED_URL" ]; then
+              echo "Failed to get accelerated URL"
+              exit 1
+            fi
+            
+            echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
+            echo "Accelerated URL: $ACCELERATED_URL"
+          fi
+
+      - name: Update manifest
+        if: steps.check-update.outputs.update_needed == 'true'
+        run: |
+          ACCELERATED_URL="${{ steps.copy-image.outputs.accelerated_url }}"
+          LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          
+          sed -i "s|image:.*|image: $ACCELERATED_URL|g" lzc-manifest.yml
+          sed -i "s/^version:.*/version: $LATEST_VERSION/g" lzc-manifest.yml
+          
+          echo "Updated to version: $LATEST_VERSION"
+          echo "Updated image: $ACCELERATED_URL"
+
+      - name: Build package
+        if: steps.check-update.outputs.update_needed == 'true'
+        env:
+          LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
+        run: |
+          lzc-cli project build -o openfang.lpk
+
+      - name: Publish to appstore
+        if: steps.check-update.outputs.update_needed == 'true'
+        env:
+          LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
+        run: |
+          LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          
+          echo "Auto update to OpenFang $LATEST_VERSION" > /tmp/changelog_en.txt
+          echo "自动更新到 OpenFang $LATEST_VERSION" > /tmp/changelog_zh.txt
+          
+          lzc-cli appstore publish openfang.lpk \
+            --clangs="en:/tmp/changelog_en.txt" \
+            --clangs="zh:/tmp/changelog_zh.txt"
+
+      - name: Commit and push changes
+        if: steps.check-update.outputs.update_needed == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add lzc-manifest.yml
+          git commit -m "Update OpenFang to version ${{ steps.get-version.outputs.latest_version }}"
+          
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          cat >> ~/.ssh/config << 'SSHEOF'
+          Host github.com
+              Hostname ssh.github.com
+              Port 443
+              User git
+              StrictHostKeyChecking no
+          SSHEOF
+          
+          git remote set-url origin git@github.com:CodeEagle/OpenFang.git
+          git push

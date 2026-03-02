@@ -212,23 +212,23 @@ jobs:
         if: steps.check-update.outputs.update_needed == 'true'
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-                run: |
-                  git config --local user.email "action@github.com"
-                  git config --local user.name "GitHub Action"
-                  git add lzc-manifest.yml
-        
-                  if git diff --staged --quiet; then
-                    echo "No changes to commit"
-                    exit 0
-                  fi
-        
-                  git commit -m "Update ${{ env.PROJECT_NAME }} to version ${{ steps.get-version.outputs.latest_version }}"
-        
-                  mkdir -p ~/.ssh
-                  echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
-                  chmod 600 ~/.ssh/id_ed25519
-        
-                  printf 'Host github.com\n  Hostname ssh.github.com\n  Port 443\n  User git\n  StrictHostKeyChecking no\n' >> ~/.ssh/config
-        
-                  git remote set-url origin git@github.com:CodeEagle/OpenFang.git
-                  git push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add lzc-manifest.yml
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Update ${{ env.PROJECT_NAME }} to version ${{ steps.get-version.outputs.latest_version }}"
+
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          printf 'Host github.com\n  Hostname ssh.github.com\n  Port 443\n  User git\n  StrictHostKeyChecking no\n' >> ~/.ssh/config
+
+          git remote set-url origin git@github.com:CodeEagle/OpenFang.git
+          git push

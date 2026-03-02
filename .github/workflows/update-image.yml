@@ -186,10 +186,11 @@ jobs:
         if: steps.check-update.outputs.update_needed == 'true'
         env:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          
-          lzc-cli appstore publish openfang.lpk -c "Auto update to OpenFang $LATEST_VERSION"
+          lzc-cli appstore publish openfang.lpk
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'

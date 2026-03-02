@@ -1,7 +1,6 @@
 name: Update OpenFang Image
 
 on:
-  # 手动触发
   workflow_dispatch:
     inputs:
       force_build:
@@ -9,9 +8,18 @@ on:
         required: false
         default: 'false'
         type: boolean
-  # 定时检查，每6小时一次
   schedule:
     - cron: '0 */6 * * *'
+
+env:
+  UPSTREAM_REPO: RightNow-AI/openfang
+  PROJECT_NAME: OpenFang
+  PROJECT_NAME_LOWER: openfang
+  OFFICIAL_IMAGE_REGISTRY: ""
+  PRECOMPILED_BINARY_URL: https://github.com/RightNow-AI/openfang/releases/download/v$LATEST_VERSION/openfang-x86_64-unknown-linux-gnu.tar.gz
+  DOCKERFILE_TYPE: simple
+  SERVICE_PORT: "4200"
+  SERVICE_CMD: '["openfang", "start"]'
 
 jobs:
   check-and-update:
@@ -28,15 +36,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 从 GitHub releases 获取最新版本号
-          LATEST_VERSION=$(gh api repos/RightNow-AI/openfang/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          LATEST_VERSION=$(gh api repos/${{ env.UPSTREAM_REPO }}/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
           
           if [ -z "$LATEST_VERSION" ]; then
             echo "No release found"
             exit 1
           fi
           
-          # 去掉 v 前缀
           LATEST_VERSION=${LATEST_VERSION#v}
           
           echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
@@ -44,8 +50,6 @@ jobs:
 
       - name: Check if update needed
         id: check-update
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURRENT_IMAGE=$(grep 'image:' lzc-manifest.yml | head -1 | awk '{print $2}')
           echo "Current image: $CURRENT_IMAGE"
@@ -53,22 +57,15 @@ jobs:
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
           FORCE_BUILD="${{ inputs.force_build }}"
           
-          echo "Force build: $FORCE_BUILD"
-          
           if [ "$FORCE_BUILD" = "true" ]; then
             echo "update_needed=true" >> $GITHUB_OUTPUT
             echo "Force build requested"
-          elif [ -n "$LATEST_VERSION" ]; then
-            if [[ "$CURRENT_IMAGE" != *"$LATEST_VERSION"* ]]; then
-              echo "update_needed=true" >> $GITHUB_OUTPUT
-              echo "New version available: $LATEST_VERSION"
-            else
-              echo "update_needed=false" >> $GITHUB_OUTPUT
-              echo "Already on latest version"
-            fi
+          elif [ -n "$LATEST_VERSION" ] && [[ "$CURRENT_IMAGE" != *"$LATEST_VERSION"* ]]; then
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            echo "New version available: $LATEST_VERSION"
           else
             echo "update_needed=false" >> $GITHUB_OUTPUT
-            echo "Could not determine latest version"
+            echo "Already on latest version"
           fi
 
       - name: Setup Node.js
@@ -89,78 +86,87 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          SOURCE_IMAGE="ghcr.io/rightnow-ai/openfang:$LATEST_VERSION"
           
-          echo "Checking if official image exists: $SOURCE_IMAGE"
-          
-          # 尝试检查官方镜像是否存在
-          if docker manifest inspect "$SOURCE_IMAGE" 2>/dev/null; then
-            echo "Official image found, copying from ghcr.io"
+          # 检查是否配置了官方镜像
+          if [ -n "${{ env.OFFICIAL_IMAGE_REGISTRY }}" ]; then
+            SOURCE_IMAGE="${{ env.OFFICIAL_IMAGE_REGISTRY }}:$LATEST_VERSION"
+            echo "Checking official image: $SOURCE_IMAGE"
             
-            COPY_OUTPUT=$(lzc-cli appstore copy-image "$SOURCE_IMAGE" 2>&1)
+            if docker manifest inspect "$SOURCE_IMAGE" 2>/dev/null; then
+              echo "Official image found, copying..."
+              COPY_OUTPUT=$(lzc-cli appstore copy-image "$SOURCE_IMAGE" 2>&1)
+              echo "$COPY_OUTPUT"
+              ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+              
+              if [ -n "$ACCELERATED_URL" ]; then
+                echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          fi
+          
+          # 无官方镜像或官方镜像不存在，尝试从预编译二进制构建
+          if [ -n "${{ env.PRECOMPILED_BINARY_URL }}" ]; then
+            echo "Building from precompiled binary..."
+            
+            # 检查是否已有构建好的镜像
+            EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+            
+            if [ -n "$EXISTING_IMAGE" ]; then
+              echo "Found existing image: $EXISTING_IMAGE"
+              echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            
+            # 下载预编译二进制
+            BINARY_URL="${{ env.PRECOMPILED_BINARY_URL }}"
+            BINARY_URL="${BINARY_URL//\$LATEST_VERSION/$LATEST_VERSION}"
+            echo "Downloading binary from: $BINARY_URL"
+            
+            mkdir -p /tmp/build
+            cd /tmp/build
+            
+            if [[ "$BINARY_URL" == *.tar.gz ]] || [[ "$BINARY_URL" == *.tgz ]]; then
+              curl -sL "$BINARY_URL" | tar xz
+            elif [[ "$BINARY_URL" == *.zip ]]; then
+              curl -sL "$BINARY_URL" -o binary.zip
+              unzip binary.zip
+            else
+              curl -sL "$BINARY_URL" -o ${{ env.PROJECT_NAME_LOWER }}
+            fi
+            
+            # 创建 Dockerfile
+            cat > Dockerfile << 'DOCKERFILE'
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY openfang /usr/local/bin/openfang
+RUN chmod +x /usr/local/bin/openfang
+EXPOSE 4200
+CMD ["openfang", "start"]
+DOCKERFILE
+            
+            # 构建并推送镜像
+            LOCAL_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ env.PROJECT_NAME_LOWER }}:$LATEST_VERSION"
+            LOCAL_IMAGE=$(echo "$LOCAL_IMAGE" | tr '[:upper:]' '[:lower:]')
+            docker build -t "$LOCAL_IMAGE" .
+            
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            docker push "$LOCAL_IMAGE"
+            
+            # 复制到懒猫镜像源
+            COPY_OUTPUT=$(lzc-cli appstore copy-image "$LOCAL_IMAGE" 2>&1)
             echo "$COPY_OUTPUT"
-            
             ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
             
             if [ -z "$ACCELERATED_URL" ]; then
-              echo "Failed to get accelerated URL from copy"
+              echo "Failed to get accelerated URL"
               exit 1
             fi
             
             echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
-            echo "Accelerated URL: $ACCELERATED_URL"
           else
-            echo "No official image found, building from precompiled binary"
-            
-            # 检查 my-images 中是否已存在该版本的镜像
-            EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
-            
-            if [ -n "$EXISTING_IMAGE" ]; then
-              echo "Found existing built image: $EXISTING_IMAGE"
-              echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
-            else
-              echo "Downloading OpenFang $LATEST_VERSION precompiled binary..."
-              
-              # 下载预编译的二进制文件
-              BINARY_URL="https://github.com/RightNow-AI/openfang/releases/download/v$LATEST_VERSION/openfang-x86_64-unknown-linux-gnu.tar.gz"
-              curl -sL "$BINARY_URL" | tar xz -C /tmp
-              
-              # 创建 Dockerfile
-              mkdir -p /tmp/openfang-docker
-              cd /tmp/openfang-docker
-              cp /tmp/openfang .
-              
-              echo 'FROM debian:bookworm-slim' > Dockerfile
-              echo 'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*' >> Dockerfile
-              echo 'COPY openfang /usr/local/bin/openfang' >> Dockerfile
-              echo 'RUN chmod +x /usr/local/bin/openfang' >> Dockerfile
-              echo 'ENV OPENFANG_LISTEN=0.0.0.0' >> Dockerfile
-              echo 'EXPOSE 4200' >> Dockerfile
-              echo 'CMD ["openfang", "start"]' >> Dockerfile
-              
-              # 构建镜像
-              LOCAL_IMAGE="ghcr.io/${{ github.repository_owner }}/openfang:$LATEST_VERSION"
-              LOCAL_IMAGE=$(echo "$LOCAL_IMAGE" | tr '[:upper:]' '[:lower:]')
-              docker build -t "$LOCAL_IMAGE" .
-              
-              # 推送到 ghcr.io
-              echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
-              docker push "$LOCAL_IMAGE"
-              
-              # 使用 copy-image 复制到懒猫镜像源
-              COPY_OUTPUT=$(lzc-cli appstore copy-image "$LOCAL_IMAGE" 2>&1)
-              echo "$COPY_OUTPUT"
-              
-              ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
-              
-              if [ -z "$ACCELERATED_URL" ]; then
-                echo "Failed to get accelerated URL from copy"
-                exit 1
-              fi
-              
-              echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
-              echo "Built and pushed image: $ACCELERATED_URL"
-            fi
+            echo "No official image configured and no precompiled binary URL set"
+            exit 1
           fi
 
       - name: Update manifest
@@ -180,7 +186,7 @@ jobs:
         env:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
         run: |
-          lzc-cli project build -o openfang.lpk
+          lzc-cli project build -o ${{ env.PROJECT_NAME_LOWER }}.lpk
 
       - name: Publish to appstore
         if: steps.check-update.outputs.update_needed == 'true'
@@ -188,7 +194,7 @@ jobs:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          lzc-cli appstore publish openfang.lpk --clang en -c "Auto update to OpenFang $LATEST_VERSION"
+          lzc-cli appstore publish ${{ env.PROJECT_NAME_LOWER }}.lpk --clang en -c "Auto update to ${{ env.PROJECT_NAME }} $LATEST_VERSION"
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'
@@ -196,15 +202,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          echo "Auto update to ${{ env.PROJECT_NAME }} $LATEST_VERSION" > /tmp/changelog.txt
           
-          # 创建 changelog 文件用于 release notes
-          echo "Auto update to OpenFang $LATEST_VERSION" > /tmp/changelog.txt
-          
-          # 创建 release 并上传制品
           gh release create "v$LATEST_VERSION" \
-            --title "OpenFang v$LATEST_VERSION" \
+            --title "${{ env.PROJECT_NAME }} v$LATEST_VERSION" \
             --notes-file /tmp/changelog.txt \
-            openfang.lpk
+            ${{ env.PROJECT_NAME_LOWER }}.lpk
 
       - name: Commit and push changes
         if: steps.check-update.outputs.update_needed == 'true'
@@ -214,19 +217,19 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add lzc-manifest.yml
-          git commit -m "Update OpenFang to version ${{ steps.get-version.outputs.latest_version }}"
+          git commit -m "Update ${{ env.PROJECT_NAME }} to version ${{ steps.get-version.outputs.latest_version }}"
           
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
           cat >> ~/.ssh/config << 'SSHEOF'
-          Host github.com
-              Hostname ssh.github.com
-              Port 443
-              User git
-              StrictHostKeyChecking no
-          SSHEOF
+Host github.com
+    Hostname ssh.github.com
+    Port 443
+    User git
+    StrictHostKeyChecking no
+SSHEOF
           
           git remote set-url origin git@github.com:CodeEagle/OpenFang.git
           git push

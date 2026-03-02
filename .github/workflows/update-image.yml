@@ -194,7 +194,8 @@ jobs:
           
           lzc-cli appstore publish openfang.lpk \
             --clangs="en:/tmp/changelog_en.txt" \
-            --clangs="zh:/tmp/changelog_zh.txt"
+            --clangs="zh:/tmp/changelog_zh.txt" \
+            --clang="en"
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'

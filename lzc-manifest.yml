@@ -16,7 +16,7 @@ application:
       backend: http://openfang:4200/
 services:
   openfang:
-    image: registry.lazycat.cloud/invokerlaw/rightnow-ai/openfang:0.2.7
+    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:f4c8d047f617f6ac
     environment:
       - OPENFANG_LISTEN=0.0.0.0
     binds:

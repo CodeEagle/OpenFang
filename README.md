@@ -18,6 +18,23 @@ OpenFang 是一个开源的 Agent 操作系统，用 Rust 从零构建，而非 
 
 整个系统编译为单一的 ~32MB 二进制文件，安装即用，你的 Agent 即刻上线。
 
+## 配置说明
+
+> [!IMPORTANT]
+> **首次使用需要配置 LLM API Key**
+>
+> OpenFang 需要至少一个 LLM Provider 的 API Key 才能正常运行。
+>
+> 在懒猫微服中，进入应用设置，添加以下环境变量之一：
+> - `ANTHROPIC_API_KEY` - Anthropic API Key（默认）
+> - `OPENAI_API_KEY` - OpenAI API Key
+>
+> 或在 `lzc-manifest.yml` 的 `services.openfang.environment` 中添加：
+> ```yaml
+> environment:
+>   - ANTHROPIC_API_KEY=your-api-key-here
+> ```
+
 ## 功能特性
 
 ### Autonomous Hands

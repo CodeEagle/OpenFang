@@ -190,7 +190,8 @@ jobs:
           LC_ALL: en_US.UTF-8
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          lzc-cli appstore publish openfang.lpk
+          echo "Auto update to OpenFang $LATEST_VERSION" > /tmp/changelog.txt
+          lzc-cli appstore publish openfang.lpk --clang=en -c "$(cat /tmp/changelog.txt)"
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'

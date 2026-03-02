@@ -106,7 +106,7 @@ jobs:
             echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
             echo "Accelerated URL: $ACCELERATED_URL"
           else
-            echo "No official image found, building from source"
+            echo "No official image found, building from precompiled binary"
             
             # 检查 my-images 中是否已存在该版本的镜像
             EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
@@ -115,25 +115,24 @@ jobs:
               echo "Found existing built image: $EXISTING_IMAGE"
               echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
             else
-              echo "Building OpenFang $LATEST_VERSION from source..."
+              echo "Downloading OpenFang $LATEST_VERSION precompiled binary..."
               
-              # 克隆源码仓库
-              git clone --depth 1 --branch "v$LATEST_VERSION" https://github.com/RightNow-AI/openfang.git /tmp/openfang-src
-              cd /tmp/openfang-src
+              # 下载预编译的二进制文件
+              BINARY_URL="https://github.com/RightNow-AI/openfang/releases/download/v$LATEST_VERSION/openfang-x86_64-unknown-linux-gnu.tar.gz"
+              curl -sL "$BINARY_URL" | tar xz -C /tmp
               
-              # 构建二进制文件（Rust 项目）
-              echo "Building Rust binary..."
-              docker run --rm -v "$(pwd):/src" -w /src rust:1.75-alpine sh -c "apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static glib-dev && cargo build --release"
+              # 创建 Dockerfile
+              mkdir -p /tmp/openfang-docker
+              cd /tmp/openfang-docker
+              cp /tmp/openfang .
               
-              # 创建 Dockerfile（如果源码仓库没有）
-              if [ ! -f Dockerfile ]; then
-                echo 'FROM alpine:3.19' > Dockerfile
-                echo 'RUN apk add --no-cache ca-certificates glib' >> Dockerfile
-                echo 'COPY target/release/openfang /usr/local/bin/openfang' >> Dockerfile
-                echo 'ENV OPENFANG_LISTEN=0.0.0.0' >> Dockerfile
-                echo 'EXPOSE 4200' >> Dockerfile
-                echo 'CMD ["openfang", "start"]' >> Dockerfile
-              fi
+              echo 'FROM debian:bookworm-slim' > Dockerfile
+              echo 'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*' >> Dockerfile
+              echo 'COPY openfang /usr/local/bin/openfang' >> Dockerfile
+              echo 'RUN chmod +x /usr/local/bin/openfang' >> Dockerfile
+              echo 'ENV OPENFANG_LISTEN=0.0.0.0' >> Dockerfile
+              echo 'EXPOSE 4200' >> Dockerfile
+              echo 'CMD ["openfang", "start"]' >> Dockerfile
               
               # 构建镜像
               LOCAL_IMAGE="openfang:$LATEST_VERSION"

@@ -123,12 +123,12 @@ jobs:
               
               # 构建二进制文件（Rust 项目）
               echo "Building Rust binary..."
-              docker run --rm -v "$(pwd):/src" -w /src rust:1.75-alpine sh -c "apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static && cargo build --release"
+              docker run --rm -v "$(pwd):/src" -w /src rust:1.75-alpine sh -c "apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static glib-dev && cargo build --release"
               
               # 创建 Dockerfile（如果源码仓库没有）
               if [ ! -f Dockerfile ]; then
                 echo 'FROM alpine:3.19' > Dockerfile
-                echo 'RUN apk add --no-cache ca-certificates' >> Dockerfile
+                echo 'RUN apk add --no-cache ca-certificates glib' >> Dockerfile
                 echo 'COPY target/release/openfang /usr/local/bin/openfang' >> Dockerfile
                 echo 'ENV OPENFANG_LISTEN=0.0.0.0' >> Dockerfile
                 echo 'EXPOSE 4200' >> Dockerfile

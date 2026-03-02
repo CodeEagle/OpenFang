@@ -83,6 +83,7 @@ jobs:
         id: build-image
         env:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
           SOURCE_IMAGE="ghcr.io/rightnow-ai/openfang:$LATEST_VERSION"
@@ -135,17 +136,21 @@ jobs:
               echo 'CMD ["openfang", "start"]' >> Dockerfile
               
               # 构建镜像
-              LOCAL_IMAGE="openfang:$LATEST_VERSION"
+              LOCAL_IMAGE="ghcr.io/codeeagle/openfang:$LATEST_VERSION"
               docker build -t "$LOCAL_IMAGE" .
               
-              # 推送到 lzc-cli appstore
-              PUSH_OUTPUT=$(lzc-cli appstore push-image "$LOCAL_IMAGE" 2>&1)
-              echo "$PUSH_OUTPUT"
+              # 推送到 ghcr.io
+              echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+              docker push "$LOCAL_IMAGE"
               
-              ACCELERATED_URL=$(echo "$PUSH_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+              # 使用 copy-image 复制到懒猫镜像源
+              COPY_OUTPUT=$(lzc-cli appstore copy-image "$LOCAL_IMAGE" 2>&1)
+              echo "$COPY_OUTPUT"
+              
+              ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
               
               if [ -z "$ACCELERATED_URL" ]; then
-                echo "Failed to push image to appstore"
+                echo "Failed to get accelerated URL from copy"
                 exit 1
               fi
               

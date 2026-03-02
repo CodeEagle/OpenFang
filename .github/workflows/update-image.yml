@@ -1,3 +1,4 @@
+# OpenFang Image Update Workflow
 name: Update OpenFang Image
 
 on:

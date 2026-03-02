@@ -78,44 +78,87 @@ jobs:
         if: steps.check-update.outputs.update_needed == 'true'
         run: npm install -g @lazycatcloud/lzc-cli
 
-      - name: Get or copy image
+      - name: Build and push image
         if: steps.check-update.outputs.update_needed == 'true'
-        id: copy-image
+        id: build-image
         env:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
           SOURCE_IMAGE="ghcr.io/rightnow-ai/openfang:$LATEST_VERSION"
           
-          echo "Looking for existing image: $SOURCE_IMAGE"
+          echo "Checking if official image exists: $SOURCE_IMAGE"
           
-          # 检查 my-images 中是否已存在该镜像
-          EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$SOURCE_IMAGE" | grep -oP 'registry\.lazycat\.cloud/[^\s'\'"]+' | head -1 || echo "")
-          
-          if [ -n "$EXISTING_IMAGE" ]; then
-            echo "Found existing accelerated image: $EXISTING_IMAGE"
-            echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
-          else
-            echo "No existing image found, copying: $SOURCE_IMAGE"
+          # 尝试检查官方镜像是否存在
+          if docker manifest inspect "$SOURCE_IMAGE" 2>/dev/null; then
+            echo "Official image found, copying from ghcr.io"
             
             COPY_OUTPUT=$(lzc-cli appstore copy-image "$SOURCE_IMAGE" 2>&1)
             echo "$COPY_OUTPUT"
             
-            ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oP 'registry\.lazycat\.cloud/[^\s]+' || echo "")
+            ACCELERATED_URL=$(echo "$COPY_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
             
             if [ -z "$ACCELERATED_URL" ]; then
-              echo "Failed to get accelerated URL"
+              echo "Failed to get accelerated URL from copy"
               exit 1
             fi
             
             echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
             echo "Accelerated URL: $ACCELERATED_URL"
+          else
+            echo "No official image found, building from source"
+            
+            # 检查 my-images 中是否已存在该版本的镜像
+            EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+            
+            if [ -n "$EXISTING_IMAGE" ]; then
+              echo "Found existing built image: $EXISTING_IMAGE"
+              echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
+            else
+              echo "Building OpenFang $LATEST_VERSION from source..."
+              
+              # 克隆源码仓库
+              git clone --depth 1 --branch "v$LATEST_VERSION" https://github.com/RightNow-AI/openfang.git /tmp/openfang-src
+              cd /tmp/openfang-src
+              
+              # 构建二进制文件（Rust 项目）
+              echo "Building Rust binary..."
+              docker run --rm -v "$(pwd):/src" -w /src rust:1.75-alpine sh -c "apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static && cargo build --release"
+              
+              # 创建 Dockerfile（如果源码仓库没有）
+              if [ ! -f Dockerfile ]; then
+                echo 'FROM alpine:3.19' > Dockerfile
+                echo 'RUN apk add --no-cache ca-certificates' >> Dockerfile
+                echo 'COPY target/release/openfang /usr/local/bin/openfang' >> Dockerfile
+                echo 'ENV OPENFANG_LISTEN=0.0.0.0' >> Dockerfile
+                echo 'EXPOSE 4200' >> Dockerfile
+                echo 'CMD ["openfang", "start"]' >> Dockerfile
+              fi
+              
+              # 构建镜像
+              LOCAL_IMAGE="openfang:$LATEST_VERSION"
+              docker build -t "$LOCAL_IMAGE" .
+              
+              # 推送到 lzc-cli appstore
+              PUSH_OUTPUT=$(lzc-cli appstore push-image "$LOCAL_IMAGE" 2>&1)
+              echo "$PUSH_OUTPUT"
+              
+              ACCELERATED_URL=$(echo "$PUSH_OUTPUT" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+              
+              if [ -z "$ACCELERATED_URL" ]; then
+                echo "Failed to push image to appstore"
+                exit 1
+              fi
+              
+              echo "accelerated_url=$ACCELERATED_URL" >> $GITHUB_OUTPUT
+              echo "Built and pushed image: $ACCELERATED_URL"
+            fi
           fi
 
       - name: Update manifest
         if: steps.check-update.outputs.update_needed == 'true'
         run: |
-          ACCELERATED_URL="${{ steps.copy-image.outputs.accelerated_url }}"
+          ACCELERATED_URL="${{ steps.build-image.outputs.accelerated_url }}"
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
           
           sed -i "s|image:.*|image: $ACCELERATED_URL|g" lzc-manifest.yml
@@ -144,6 +187,19 @@ jobs:
           lzc-cli appstore publish openfang.lpk \
             --clangs="en:/tmp/changelog_en.txt" \
             --clangs="zh:/tmp/changelog_zh.txt"
+
+      - name: Create GitHub Release
+        if: steps.check-update.outputs.update_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
+          
+          # 创建 release 并上传制品
+          gh release create "v$LATEST_VERSION" \
+            --title "OpenFang v$LATEST_VERSION" \
+            --notes-file /tmp/changelog_en.txt \
+            openfang.lpk
 
       - name: Commit and push changes
         if: steps.check-update.outputs.update_needed == 'true'

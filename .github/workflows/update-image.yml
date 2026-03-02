@@ -16,6 +16,9 @@ on:
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -136,11 +139,11 @@ jobs:
               echo 'CMD ["openfang", "start"]' >> Dockerfile
               
               # 构建镜像
-              LOCAL_IMAGE="ghcr.io/codeeagle/openfang:$LATEST_VERSION"
+              LOCAL_IMAGE="ghcr.io/${{ github.repository_owner }}/openfang:$LATEST_VERSION"
               docker build -t "$LOCAL_IMAGE" .
               
               # 推送到 ghcr.io
-              echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+              echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
               docker push "$LOCAL_IMAGE"
               
               # 使用 copy-image 复制到懒猫镜像源

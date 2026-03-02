@@ -34,33 +34,43 @@ check_api_keys() {
 
 # 启动配置引导页面
 start_setup_page() {
+    echo "=============================================="
     echo "⚠️  No LLM API Key configured!"
     echo "📋 Starting setup guide page on port 4200..."
+    echo "=============================================="
 
     cd /opt/openfang/setup
 
-    # 使用 busybox httpd 或 python 启动简单 HTTP 服务器
-    if command -v busybox &> /dev/null; then
+    # busybox-static 安装在 /bin/busybox
+    if [ -x /bin/busybox ]; then
+        echo "Starting HTTP server with busybox..."
+        exec /bin/busybox httpd -f -p 4200 -h .
+    elif command -v busybox &> /dev/null; then
+        echo "Starting HTTP server with busybox..."
         exec busybox httpd -f -p 4200 -h .
-    elif command -v python3 &> /dev/null; then
-        exec python3 -m http.server 4200
-    elif command -v python &> /dev/null; then
-        exec python -m SimpleHTTPServer 4200
     else
-        # 回退：使用 netcat (如果没有其他选项)
-        echo "No HTTP server available, showing message..."
+        echo "ERROR: No HTTP server available!"
+        echo "Please configure LLM API Key in environment variables:"
+        echo "  - ANTHROPIC_API_KEY"
+        echo "  - OPENAI_API_KEY"
+        echo "  - GEMINI_API_KEY"
+        echo "  - etc."
+        # 保持容器运行
         while true; do
-            echo "Please configure LLM API Key in environment variables"
-            sleep 60
+            sleep 3600
         done
     fi
 }
 
 # 主逻辑
+echo "=============================================="
 echo "🔍 Checking LLM API Key configuration..."
+echo "=============================================="
 
 if check_api_keys; then
+    echo "=============================================="
     echo "✅ API Key configured, starting OpenFang..."
+    echo "=============================================="
     exec openfang start
 else
     start_setup_page

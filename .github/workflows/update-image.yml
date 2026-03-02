@@ -188,8 +188,9 @@ jobs:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          echo "Auto update to OpenFang $LATEST_VERSION" > /tmp/changelog.txt
-          lzc-cli appstore publish openfang.lpk -F /tmp/changelog.txt
+          echo "Auto update to OpenFang $LATEST_VERSION" > /tmp/changelog_en.txt
+          echo "自动更新到 OpenFang $LATEST_VERSION" > /tmp/changelog_zh.txt
+          lzc-cli appstore publish openfang.lpk --clang=en --clangs="en:/tmp/changelog_en.txt" --clangs="zh:/tmp/changelog_zh.txt"
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'

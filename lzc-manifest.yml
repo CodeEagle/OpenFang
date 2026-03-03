@@ -17,31 +17,7 @@ application:
 services:
   openfang:
     image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:62160d016b29db33
-    # 启动前创建默认配置文件
-    command:
-      - /bin/sh
-      - -c
-      - |
-        mkdir -p /root/.openfang
-        if [ ! -f /root/.openfang/config.toml ]; then
-          cat > /root/.openfang/config.toml << 'EOF'
-        # OpenFang Configuration (Auto-generated)
-        api_key = "openfang-default-2024"
-        api_listen = "0.0.0.0:4200"
-
-        [default_model]
-        provider = "anthropic"
-        model = "claude-sonnet-4-20250514"
-        api_key_env = "ANTHROPIC_API_KEY"
-
-        [memory]
-        decay_rate = 0.05
-
-        [network]
-        listen_addr = "0.0.0.0:4200"
-        EOF
-        fi
-        exec openfang start
+    command: /bin/sh -c "mkdir -p /root/.openfang && if [ ! -f /root/.openfang/config.toml ]; then echo 'api_key = \"openfang-default-2024\"' > /root/.openfang/config.toml && echo 'api_listen = \"0.0.0.0:4200\"' >> /root/.openfang/config.toml && echo '' >> /root/.openfang/config.toml && echo '[default_model]' >> /root/.openfang/config.toml && echo 'provider = \"anthropic\"' >> /root/.openfang/config.toml && echo 'model = \"claude-sonnet-4-20250514\"' >> /root/.openfang/config.toml && echo 'api_key_env = \"ANTHROPIC_API_KEY\"' >> /root/.openfang/config.toml && echo '' >> /root/.openfang/config.toml && echo '[network]' >> /root/.openfang/config.toml && echo 'listen_addr = \"0.0.0.0:4200\"' >> /root/.openfang/config.toml; fi && exec openfang start"
     environment:
       # OpenFang 配置
       - OPENFANG_LISTEN=0.0.0.0:4200

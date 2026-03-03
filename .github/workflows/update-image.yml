@@ -37,17 +37,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_VERSION=$(gh api repos/${{ env.UPSTREAM_REPO }}/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          RELEASE_DATA=$(gh api repos/${{ env.UPSTREAM_REPO }}/releases/latest 2>/dev/null || echo "")
 
-          if [ -z "$LATEST_VERSION" ]; then
+          if [ -z "$RELEASE_DATA" ]; then
             echo "No release found"
             exit 1
           fi
 
+          LATEST_VERSION=$(echo "$RELEASE_DATA" | jq -r '.tag_name')
           LATEST_VERSION=${LATEST_VERSION#v}
+
+          # 获取官方 release notes
+          RELEASE_NOTES=$(echo "$RELEASE_DATA" | jq -r '.body')
 
           echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "Latest version found: $LATEST_VERSION"
+
+          # 保存 release notes 到文件（处理多行内容）
+          echo "$RELEASE_NOTES" > /tmp/release_notes.txt
+          echo "release_notes_file=/tmp/release_notes.txt" >> $GITHUB_OUTPUT
 
       - name: Check if update needed
         id: check-update
@@ -202,7 +210,10 @@ jobs:
           LZC_CLI_TOKEN: ${{ secrets.LZC_CLI_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          lzc-cli appstore publish ${{ env.PROJECT_NAME_LOWER }}.lpk --clang en -c "Auto update to ${{ env.PROJECT_NAME }} $LATEST_VERSION"
+          RELEASE_NOTES=$(cat /tmp/release_notes.txt)
+
+          # 使用官方 release notes 发布
+          lzc-cli appstore publish ${{ env.PROJECT_NAME_LOWER }}.lpk --clang en -c "$RELEASE_NOTES"
 
       - name: Create GitHub Release
         if: steps.check-update.outputs.update_needed == 'true'
@@ -210,14 +221,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_VERSION="${{ steps.get-version.outputs.latest_version }}"
-          echo "Auto update to ${{ env.PROJECT_NAME }} $LATEST_VERSION" > /tmp/changelog.txt
 
           # 如果 release 已存在则先删除
           gh release delete "v$LATEST_VERSION" --yes 2>/dev/null || true
 
           gh release create "v$LATEST_VERSION" \
             --title "${{ env.PROJECT_NAME }} v$LATEST_VERSION" \
-            --notes-file /tmp/changelog.txt \
+            --notes-file /tmp/release_notes.txt \
             ${{ env.PROJECT_NAME_LOWER }}.lpk
 
       - name: Commit and push changes

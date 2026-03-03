@@ -1,9 +1,11 @@
 lzc-sdk-version: '0.1'
 package: com.selfstudio.openfang
-version: 0.3.5
+version: 0.3.3
 min_os_version: 1.3.8
 name: OpenFang
-description: (LazyCat Auto-build) Open-source Agent Operating System - autonomous agents that work for you
+description: >-
+  (LazyCat Auto-build) Open-source Agent Operating System - autonomous agents
+  that work for you
 license: MIT
 homepage: https://openfang.sh
 author: RightNow-AI
@@ -11,15 +13,12 @@ application:
   subdomain: openfang
   public_path:
     - /
-  error_page:
-    - /lzcapp/pkg/content/index.html
   upstreams:
     - location: /
       backend: http://openfang:4200/
 services:
   openfang:
     image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:62160d016b29db33
-    # 启动前创建默认配置文件
     setup_script: |
       mkdir -p /root/.openfang
       CONFIG_FILE="/root/.openfang/config.toml"
@@ -29,16 +28,14 @@ services:
       if [ -f "$API_KEY_FILE" ]; then
         API_KEY=$(cat "$API_KEY_FILE")
       else
-        # 简单方法：时间戳 + 随机数
-        TS=$(date +%s)
-        API_KEY="of_${TS}_$$"
+        API_KEY="of_$(head -c 16 /dev/urandom | xxd -p)"
         echo "$API_KEY" > "$API_KEY_FILE"
       fi
 
       # 打印 API Key 到日志
       echo ""
       echo "=========================================="
-      echo "OpenFang API Key: $API_KEY"
+      echo "🔑 OpenFang API Key: $API_KEY"
       echo "=========================================="
       echo ""
 
@@ -54,12 +51,9 @@ services:
       echo '[network]' >> "$CONFIG_FILE"
       echo 'listen_addr = "0.0.0.0:4200"' >> "$CONFIG_FILE"
     environment:
-      # OpenFang 配置
       - OPENFANG_LISTEN=0.0.0.0:4200
       - OPENFANG_HOME
       - RUST_LOG
-
-      # LLM Provider API Keys - 至少配置一个
       - ANTHROPIC_API_KEY
       - GEMINI_API_KEY
       - GOOGLE_API_KEY
@@ -70,13 +64,9 @@ services:
       - TOGETHER_API_KEY
       - MISTRAL_API_KEY
       - FIREWORKS_API_KEY
-
-      # Local LLM Providers
       - OLLAMA_BASE_URL
       - VLLM_BASE_URL
       - LMSTUDIO_BASE_URL
-
-      # Channel Tokens
       - TELEGRAM_BOT_TOKEN
       - DISCORD_BOT_TOKEN
       - SLACK_BOT_TOKEN
@@ -96,7 +86,9 @@ services:
 locales:
   en:
     name: OpenFang
-    description: (LazyCat Auto-build) Open-source Agent Operating System - autonomous agents that work for you
+    description: >-
+      (LazyCat Auto-build) Open-source Agent Operating System - autonomous
+      agents that work for you
   zh:
     name: OpenFang
     description: （懒猫微服自动构建）开源 Agent 操作系统 - 自主代理为你工作

@@ -193,20 +193,28 @@
             <div class="step">
                 <div class="step-title">
                     <span class="step-number">1</span>
-                    进入应用设置
+                    获取 API Key
                 </div>
                 <div class="step-content">
-                    在懒猫微服中，打开 <strong>应用中心</strong> → 找到 <strong>OpenFang</strong> → 点击 <strong>设置</strong>
+                    OpenFang 启动时会自动生成一个 <strong>API Key</strong>，用于访问控制。
+                    <br><br>
+                    在懒猫微服中，打开 <strong>应用中心</strong> → 找到 <strong>OpenFang</strong> → 点击 <strong>日志</strong>
+                    <br><br>
+                    查找类似以下的日志行：
+                    <br><br>
+                    <code>OpenFang API Key: of_xxxxxxxxxxxxxxxx</code>
                 </div>
             </div>
 
             <div class="step">
                 <div class="step-title">
                     <span class="step-number">2</span>
-                    添加环境变量
+                    配置 LLM Provider
                 </div>
                 <div class="step-content">
-                    在环境变量配置中，添加你的 API Key，例如：
+                    在懒猫微服中，打开 <strong>应用中心</strong> → 找到 <strong>OpenFang</strong> → 点击 <strong>设置</strong>
+                    <br><br>
+                    添加你的 LLM API Key，例如：
                     <br><br>
                     <code>ANTHROPIC_API_KEY=sk-ant-xxxxx</code>
                     <br><br>

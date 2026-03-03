@@ -16,7 +16,7 @@ application:
       backend: http://openfang:4200/
 services:
   openfang:
-    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:62160d016b29db33
+    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:2c66a2ad01279481
     setup_script: |
       mkdir -p /root/.openfang
       CONFIG_FILE="/root/.openfang/config.toml"

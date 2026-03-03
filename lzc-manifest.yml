@@ -20,7 +20,7 @@ services:
     environment:
       # OpenFang 配置
       - OPENFANG_LISTEN=0.0.0.0:4200
-      - OPENFANG_API_KEY
+      - OPENFANG_API_KEY=openfang-default-2024
       - OPENFANG_HOME
       - RUST_LOG
 

@@ -18,7 +18,10 @@ services:
   openfang:
     image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:125acb573547db3f
     setup_script: |
+      # 创建数据目录并设置权限
       mkdir -p /root/.openfang
+      mkdir -p /root/.openfang/data
+
       CONFIG_FILE="/root/.openfang/config.toml"
       API_KEY_FILE="/root/.openfang/.api_key"
 

@@ -57,8 +57,8 @@ services:
       - EMAIL_USERNAME
       - EMAIL_PASSWORD
     binds:
-      - /lzcapp/var/config:/root/.config/openfang
-      - /lzcapp/var/data:/root/.local/share/openfang
+      - /lzcapp/var/config:/root/.openfang
+      - /lzcapp/var/data:/root/.openfang/data
 locales:
   en:
     name: OpenFang

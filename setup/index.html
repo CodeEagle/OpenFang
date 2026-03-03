@@ -152,10 +152,15 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 16px -8px rgba(102, 126, 234, 0.5);
         }
-        [lang="en"] { display: none !important; }
-        html[lang="en"] [lang="zh-CN"] { display: none !important; }
-        html[lang="en"] div[lang="en"] { display: block !important; }
-        html[lang="en"] span[lang="en"] { display: inline !important; }
+        /* 默认：隐藏英文内容 */
+        span[lang="en"], div[lang="en"], p[lang="en"] { display: none; }
+        /* 英文模式：隐藏中文 */
+        html[lang="en"] span[lang="zh-CN"],
+        html[lang="en"] div[lang="zh-CN"],
+        html[lang="en"] p[lang="zh-CN"] { display: none; }
+        /* 英文模式：显示英文 */
+        html[lang="en"] span[lang="en"] { display: inline; }
+        html[lang="en"] div[lang="en"], html[lang="en"] p[lang="en"] { display: block; }
     </style>
 </head>
 <body>

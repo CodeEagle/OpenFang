@@ -109,14 +109,18 @@ jobs:
           # 无官方镜像或官方镜像不存在，尝试从预编译二进制构建
           if [ -n "${{ env.PRECOMPILED_BINARY_URL }}" ]; then
             echo "Building from precompiled binary..."
-            
-            # 检查是否已有构建好的镜像
-            EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
-            
-            if [ -n "$EXISTING_IMAGE" ]; then
-              echo "Found existing image: $EXISTING_IMAGE"
-              echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
-              exit 0
+
+            # 检查是否已有构建好的镜像 (force_build 时跳过检查，强制重新构建)
+            if [ "${{ inputs.force_build }}" != "true" ]; then
+              EXISTING_IMAGE=$(lzc-cli appstore my-images 2>&1 | grep "$LATEST_VERSION" | grep -oE 'registry\.lazycat\.cloud/[a-zA-Z0-9_/.:-]+' | head -1 || echo "")
+
+              if [ -n "$EXISTING_IMAGE" ]; then
+                echo "Found existing image: $EXISTING_IMAGE"
+                echo "accelerated_url=$EXISTING_IMAGE" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            else
+              echo "Force build enabled, skipping existing image check"
             fi
             
             # 下载预编译二进制

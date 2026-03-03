@@ -19,7 +19,7 @@ services:
     image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:62160d016b29db33
     environment:
       # OpenFang 配置
-      - OPENFANG_LISTEN=0.0.0.0
+      - OPENFANG_LISTEN=0.0.0.0:4200
       - OPENFANG_API_KEY
       - OPENFANG_HOME
       - RUST_LOG

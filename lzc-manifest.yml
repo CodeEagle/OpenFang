@@ -1,6 +1,6 @@
 lzc-sdk-version: '0.1'
 package: com.selfstudio.openfang
-version: 0.3.22
+version: 0.3.23
 min_os_version: 1.3.8
 name: OpenFang
 description: (LazyCat Auto-build) Open-source Agent Operating System - autonomous agents that work for you
@@ -16,7 +16,7 @@ application:
       backend: http://openfang:4200/
 services:
   openfang:
-    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:cdb3d2e3cd3bd59a
+    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:eb5d6163cdf5d26e
     setup_script: |
       # 创建数据目录并设置权限
       mkdir -p /root/.openfang

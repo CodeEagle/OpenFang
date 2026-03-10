@@ -47,6 +47,13 @@ OpenFang 是一个开源的 Agent 操作系统，用 Rust 从零构建，而非 
 - **Twitter** - 自动化 Twitter/X 账号管理
 - **Browser** - Web 自动化，支持审批门控
 
+> [!TIP]
+> **Hands 依赖已内置**
+>
+> 镜像已预装所有 Hands 所需的运行时依赖，开箱即用：
+> - **Clip Hand**: `ffmpeg`, `yt-dlp` (视频处理与下载)
+> - **Browser Hand**: `python3`, `selenium`, `chromium` (Headless 浏览器自动化)
+
 ### 安全特性
 - 16 层安全防护
 - WASM 双计量沙箱

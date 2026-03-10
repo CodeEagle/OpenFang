@@ -178,15 +178,8 @@ jobs:
               curl -sL "$BINARY_URL" -o ${{ env.PROJECT_NAME_LOWER }}
             fi
             
-            # 创建 Dockerfile
-            echo 'FROM debian:bookworm-slim' > Dockerfile
-            echo 'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates busybox-static && rm -rf /var/lib/apt/lists/*' >> Dockerfile
-            echo 'COPY openfang /usr/local/bin/openfang' >> Dockerfile
-            echo 'RUN chmod +x /usr/local/bin/openfang' >> Dockerfile
-            echo 'COPY setup /opt/openfang/setup' >> Dockerfile
-            echo 'RUN chmod +x /opt/openfang/setup/entrypoint.sh' >> Dockerfile
-            echo 'EXPOSE 4200' >> Dockerfile
-            echo 'CMD ["/opt/openfang/setup/entrypoint.sh"]' >> Dockerfile
+            # 复制项目中的 Dockerfile（包含 Hands 依赖）
+            cp ${{ github.workspace }}/Dockerfile .
 
             # 复制 setup 目录
             cp -r ${{ github.workspace }}/setup .

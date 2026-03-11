@@ -16,7 +16,7 @@ application:
       backend: http://openfang:4200/
 services:
   openfang:
-    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:5457ceb101c3d1f5
+    image: registry.lazycat.cloud/invokerlaw/codeeagle/openfang:296c78aa8a9f49b4
     setup_script: |
       # 创建数据目录并设置权限
       mkdir -p /root/.openfang

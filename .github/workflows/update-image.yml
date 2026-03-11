@@ -27,7 +27,6 @@ env:
   PROJECT_NAME: OpenFang
   PROJECT_NAME_LOWER: openfang
   OFFICIAL_IMAGE_REGISTRY: ""
-  PRECOMPILED_BINARY_URL: https://github.com/RightNow-AI/openfang/releases/download/v$LATEST_VERSION/openfang-x86_64-unknown-linux-gnu.tar.gz
   DOCKERFILE_TYPE: simple
   SERVICE_PORT: "4200"
   SERVICE_CMD: '["openfang", "start"]'
@@ -41,12 +40,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install source build dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
       - name: Get latest package version
         id: get-version
@@ -147,52 +140,30 @@ jobs:
             fi
           fi
 
-          # 无官方镜像或官方镜像不存在，尝试从预编译二进制构建
-          if [ -n "${{ env.PRECOMPILED_BINARY_URL }}" ]; then
-            echo "Building from precompiled binary..."
-            
-            # 下载预编译二进制
-            BINARY_URL="${{ env.PRECOMPILED_BINARY_URL }}"
-            BINARY_URL="${BINARY_URL//\$LATEST_VERSION/$LATEST_VERSION}"
-            echo "Downloading binary from: $BINARY_URL"
-            
-            mkdir -p /tmp/build
-            cd /tmp/build
+          echo "Building from source in Debian bookworm to match runtime glibc..."
 
-            if curl -fsI "$BINARY_URL" >/dev/null 2>&1; then
-              if [[ "$BINARY_URL" == *.tar.gz ]] || [[ "$BINARY_URL" == *.tgz ]]; then
-                curl -fsSL "$BINARY_URL" | tar xz
-              elif [[ "$BINARY_URL" == *.zip ]]; then
-                curl -fsSL "$BINARY_URL" -o binary.zip
-                unzip binary.zip
-              else
-                curl -fsSL "$BINARY_URL" -o ${{ env.PROJECT_NAME_LOWER }}
-              fi
-            else
-              echo "Precompiled binary not found, falling back to source build..."
-              cd /tmp
-              rm -rf openfang-src
-              git clone --depth 1 --branch "$SOURCE_VERSION" "https://github.com/${{ env.UPSTREAM_REPO }}.git" openfang-src
-              cd openfang-src
-              cargo build --release --bin openfang
-              cp target/release/openfang /tmp/build/openfang
-              cd /tmp/build
-            fi
-            
-            # 复制项目中的 Dockerfile（包含 Hands 依赖）
-            cp ${{ github.workspace }}/Dockerfile .
+          rm -rf /tmp/openfang-src /tmp/build
+          git clone --depth 1 --branch "$SOURCE_VERSION" "https://github.com/${{ env.UPSTREAM_REPO }}.git" /tmp/openfang-src
+          mkdir -p /tmp/build
 
-            # 复制 setup 目录
-            cp -r ${{ github.workspace }}/setup .
-            
-            # 构建并推送镜像
-            docker build -t "$LOCAL_IMAGE_WITH_V" -t "$LOCAL_IMAGE_PLAIN" .
-            docker push "$LOCAL_IMAGE_WITH_V"
-            docker push "$LOCAL_IMAGE_PLAIN"
-          else
-            echo "No official image configured and no precompiled binary URL set"
-            exit 1
-          fi
+          docker run --rm \
+            -v /tmp/openfang-src:/src \
+            -w /src \
+            rust:1.85-bookworm \
+            bash -lc 'apt-get update && apt-get install -y pkg-config libssl-dev && cargo build --release --bin openfang'
+
+          cp /tmp/openfang-src/target/release/openfang /tmp/build/openfang
+
+          # 复制项目中的 Dockerfile（包含 Hands 依赖）
+          cp ${{ github.workspace }}/Dockerfile /tmp/build/Dockerfile
+
+          # 复制 setup 目录
+          cp -r ${{ github.workspace }}/setup /tmp/build/setup
+
+          # 构建并推送镜像
+          docker build -t "$LOCAL_IMAGE_WITH_V" -t "$LOCAL_IMAGE_PLAIN" /tmp/build
+          docker push "$LOCAL_IMAGE_WITH_V"
+          docker push "$LOCAL_IMAGE_PLAIN"
 
       - name: Print pushed image
         if: steps.check-update.outputs.update_needed == 'true'
